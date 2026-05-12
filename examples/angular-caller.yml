@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Angular CI
+    uses: your-username/ci-workflows/.github/workflows/angular.yml@v1
+    with:
+      node-version: '22'
+      package-manager: 'npm'
+      # Skip E2E on pull requests to feature branches — run on main merges only
+      run-e2e: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+
+  security:
+    name: Security scan
+    uses: your-username/ci-workflows/.github/workflows/security-scan.yml@v1
+    needs: [ci]
+
+  docker:
+    name: Docker build
+    uses: your-username/ci-workflows/.github/workflows/docker-build.yml@v1
+    needs: [ci]
+    with:
+      image-name: ${{ github.repository }}
+      push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}

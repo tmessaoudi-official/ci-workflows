@@ -1,0 +1,67 @@
+name: Self-test (workflow linting)
+
+# This workflow validates all workflow files in this repository using actionlint.
+# It runs on push when any workflow file changes, and can be triggered manually.
+on:
+  push:
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  actionlint:
+    name: Lint all workflow files (actionlint)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
+
+      - name: Check workflow YAML syntax (yamllint)
+        run: |
+          pip install yamllint --quiet
+          yamllint -d '{extends: relaxed, rules: {line-length: {max: 120}}}' .github/workflows/
+
+  validate-examples:
+    name: Validate example caller files (actionlint)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check example YAML syntax
+        run: |
+          pip install yamllint --quiet
+          yamllint -d '{extends: relaxed, rules: {line-length: {max: 120}}}' examples/
+
+      - name: Verify all referenced workflow files exist
+        run: |
+          failed=0
+          for example_file in examples/*.yml; do
+            echo "Checking references in $example_file..."
+            # Extract 'uses:' lines referencing .github/workflows/*.yml within this repo
+            while IFS= read -r line; do
+              # Match lines like: uses: your-username/ci-workflows/.github/workflows/X.yml@Y
+              if echo "$line" | grep -qE 'uses:.*ci-workflows/.github/workflows/[^@]+\.yml'; then
+                workflow=$(echo "$line" | grep -oP '(?<=ci-workflows/).+?(?=@)')
+                if [ ! -f "$workflow" ]; then
+                  echo "ERROR: Referenced workflow '$workflow' does not exist (in $example_file)"
+                  failed=1
+                else
+                  echo "  OK: $workflow"
+                fi
+              fi
+            done < "$example_file"
+          done
+          exit $failed

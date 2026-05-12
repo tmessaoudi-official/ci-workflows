@@ -1,0 +1,133 @@
+name: Spring Boot CI
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: 'Java version to use (Temurin distribution)'
+        type: string
+        default: '21'
+      working-directory:
+        description: 'Directory containing the Gradle project (use "." for repo root)'
+        type: string
+        default: '.'
+      gradle-args:
+        description: 'Extra arguments to pass to every Gradle invocation'
+        type: string
+        default: ''
+      run-archunit:
+        description: 'Whether the test suite includes ArchUnit architecture tests'
+        type: boolean
+        default: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # STAGE 1 — Build, test, validate wrapper
+  # ─────────────────────────────────────────────────────────
+  build-and-test:
+    name: Build and test (Gradle)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Gradle wrapper checksum
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Java ${{ inputs.java-version }} (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
+
+      - name: Set up Gradle with caching
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true  # Remove unused cache entries to control cache size
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Run all tests (unit + integration + ArchUnit)
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/test_db
+          SPRING_DATASOURCE_USERNAME: test
+          SPRING_DATASOURCE_PASSWORD: test
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+        run: ./gradlew test ${{ inputs.gradle-args }} --info
+
+      - name: Upload JUnit test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-spring-boot
+          path: ${{ inputs.working-directory }}/**/build/test-results/test/*.xml
+          retention-days: 7
+
+      - name: Upload HTML test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: html-test-report-spring-boot
+          path: ${{ inputs.working-directory }}/**/build/reports/tests/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 2 — Build JAR artifact
+  # ─────────────────────────────────────────────────────────
+  build-jar:
+    name: Build Spring Boot JAR
+    needs: [build-and-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ inputs.java-version }} (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
+
+      - name: Set up Gradle with caching
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build executable JAR
+        run: ./gradlew bootJar ${{ inputs.gradle-args }}
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-boot-jar
+          path: ${{ inputs.working-directory }}/**/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,396 @@
+name: Symfony CI
+
+on:
+  workflow_call:
+    inputs:
+      php-version:
+        description: 'PHP version to use'
+        type: string
+        default: '8.4'
+      composer-flags:
+        description: 'Extra flags passed to composer install'
+        type: string
+        default: '--prefer-dist --no-progress'
+      phpstan-level:
+        description: 'PHPStan analysis level (0–9)'
+        type: number
+        default: 8
+      run-mutation:
+        description: 'Whether to run Infection mutation testing (slow, recommended for main branch only)'
+        type: boolean
+        default: false
+      working-directory:
+        description: 'Directory containing the Symfony project (use "." for repo root)'
+        type: string
+        default: '.'
+      php-extensions:
+        description: 'Comma-separated list of PHP extensions to install via shivammathur/setup-php'
+        type: string
+        default: 'intl, pdo_pgsql, redis, amqp'
+    secrets:
+      COMPOSER_AUTH:
+        description: 'Composer authentication JSON (for private Packagist or GitHub token)'
+        required: false
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # STAGE 1 — Code style (parallel)
+  # ─────────────────────────────────────────────────────────
+  code-style:
+    name: Code style (PHP CS Fixer + Rector)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ inputs.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none  # No coverage needed for style checks
+          tools: cs2pr    # Annotates PR with CS Fixer output
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Configure Composer authentication
+        if: ${{ secrets.COMPOSER_AUTH != '' }}
+        run: echo "${{ secrets.COMPOSER_AUTH }}" > ~/.composer/auth.json
+
+      - name: Install Composer dependencies
+        run: composer install ${{ inputs.composer-flags }} --no-interaction
+
+      - name: Run PHP CS Fixer (dry run)
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff --format=checkstyle | cs2pr
+
+      - name: Run Rector (dry run)
+        run: vendor/bin/rector process --dry-run
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 1 — Static analysis (parallel with code-style)
+  # ─────────────────────────────────────────────────────────
+  static-analysis:
+    name: Static analysis (PHPStan level ${{ inputs.phpstan-level }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ inputs.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Configure Composer authentication
+        if: ${{ secrets.COMPOSER_AUTH != '' }}
+        run: echo "${{ secrets.COMPOSER_AUTH }}" > ~/.composer/auth.json
+
+      - name: Install Composer dependencies
+        run: composer install ${{ inputs.composer-flags }} --no-interaction
+
+      - name: Run PHPStan static analysis
+        run: vendor/bin/phpstan analyse --level=${{ inputs.phpstan-level }} --no-progress
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 2 — Unit tests
+  # ─────────────────────────────────────────────────────────
+  tests-unit:
+    name: Unit tests (Pest)
+    needs: [code-style, static-analysis]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ inputs.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: pcov  # PCOV is faster than Xdebug for coverage
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Configure Composer authentication
+        if: ${{ secrets.COMPOSER_AUTH != '' }}
+        run: echo "${{ secrets.COMPOSER_AUTH }}" > ~/.composer/auth.json
+
+      - name: Install Composer dependencies
+        run: composer install ${{ inputs.composer-flags }} --no-interaction
+
+      - name: Run Pest unit tests with coverage
+        run: |
+          vendor/bin/pest --group=unit \
+            --coverage \
+            --coverage-clover=coverage-unit.xml \
+            --log-junit=junit-unit.xml
+
+      - name: Upload unit test coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: ${{ inputs.working-directory }}/coverage-unit.xml
+          retention-days: 7
+
+      - name: Upload unit test JUnit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-unit
+          path: ${{ inputs.working-directory }}/junit-unit.xml
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 3 — Integration tests
+  # ─────────────────────────────────────────────────────────
+  tests-integration:
+    name: Integration tests (Pest + PostgreSQL + Redis)
+    needs: [tests-unit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ inputs.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Configure Composer authentication
+        if: ${{ secrets.COMPOSER_AUTH != '' }}
+        run: echo "${{ secrets.COMPOSER_AUTH }}" > ~/.composer/auth.json
+
+      - name: Install Composer dependencies
+        run: composer install ${{ inputs.composer-flags }} --no-interaction
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/test_db?serverVersion=17&charset=utf8
+          REDIS_URL: redis://127.0.0.1:6379
+        run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+      - name: Run Pest integration tests
+        env:
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/test_db?serverVersion=17&charset=utf8
+          REDIS_URL: redis://127.0.0.1:6379
+          APP_ENV: test
+        run: |
+          vendor/bin/pest --group=integration \
+            --log-junit=junit-integration.xml
+
+      - name: Upload integration test JUnit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-integration
+          path: ${{ inputs.working-directory }}/junit-integration.xml
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 4 — End-to-end tests (Behat)
+  # ─────────────────────────────────────────────────────────
+  tests-e2e:
+    name: E2E tests (Behat)
+    needs: [tests-integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      rabbitmq:
+        image: rabbitmq:3-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ inputs.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Configure Composer authentication
+        if: ${{ secrets.COMPOSER_AUTH != '' }}
+        run: echo "${{ secrets.COMPOSER_AUTH }}" > ~/.composer/auth.json
+
+      - name: Install Composer dependencies
+        run: composer install ${{ inputs.composer-flags }} --no-interaction
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/test_db?serverVersion=17&charset=utf8
+          REDIS_URL: redis://127.0.0.1:6379
+          MESSENGER_TRANSPORT_DSN: amqp://guest:guest@127.0.0.1:5672/%2f/messages
+          APP_ENV: test
+        run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+      - name: Run Behat E2E scenarios
+        env:
+          DATABASE_URL: postgresql://test:test@127.0.0.1:5432/test_db?serverVersion=17&charset=utf8
+          REDIS_URL: redis://127.0.0.1:6379
+          MESSENGER_TRANSPORT_DSN: amqp://guest:guest@127.0.0.1:5672/%2f/messages
+          APP_ENV: test
+        run: vendor/bin/behat --format=progress --no-interaction
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 3 (parallel) — Mutation testing (conditional)
+  # ─────────────────────────────────────────────────────────
+  mutation:
+    name: Mutation testing (Infection)
+    needs: [tests-unit]
+    if: ${{ inputs.run-mutation }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ inputs.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: pcov
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Configure Composer authentication
+        if: ${{ secrets.COMPOSER_AUTH != '' }}
+        run: echo "${{ secrets.COMPOSER_AUTH }}" > ~/.composer/auth.json
+
+      - name: Install Composer dependencies
+        run: composer install ${{ inputs.composer-flags }} --no-interaction
+
+      - name: Run Infection mutation testing
+        run: |
+          vendor/bin/infection \
+            --threads=$(nproc) \
+            --min-msi=80 \
+            --min-covered-msi=85 \
+            --no-interaction \
+            --log-verbosity=default

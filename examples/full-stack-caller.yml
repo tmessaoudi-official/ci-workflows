@@ -1,0 +1,59 @@
+name: Full-stack CI
+
+# Example: Symfony backend + Angular frontend in a monorepo.
+# Backend and frontend CI run in parallel; Docker build waits for both.
+#
+# Assumes project layout:
+#   backend/   — Symfony app
+#   frontend/  — Angular app
+#   Dockerfile — multi-stage build combining both
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend (Symfony) ─────────────────────────────────────
+  backend:
+    name: Backend CI (Symfony)
+    uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
+    with:
+      php-version: '8.4'
+      phpstan-level: 8
+      working-directory: 'backend'
+      run-mutation: ${{ github.ref == 'refs/heads/main' }}
+    secrets:
+      COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+
+  # ── Frontend (Angular) ────────────────────────────────────
+  frontend:
+    name: Frontend CI (Angular)
+    uses: your-username/ci-workflows/.github/workflows/angular.yml@v1
+    with:
+      node-version: '22'
+      working-directory: 'frontend'
+      run-e2e: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+
+  # ── Security (runs after both pass) ───────────────────────
+  security:
+    name: Security scan
+    uses: your-username/ci-workflows/.github/workflows/security-scan.yml@v1
+    needs: [backend, frontend]
+
+  # ── Docker (runs after both pass, pushes on main) ─────────
+  docker:
+    name: Docker build
+    uses: your-username/ci-workflows/.github/workflows/docker-build.yml@v1
+    needs: [backend, frontend]
+    with:
+      image-name: ${{ github.repository }}
+      platforms: 'linux/amd64,linux/arm64'
+      push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Spring Boot CI
+    uses: your-username/ci-workflows/.github/workflows/spring-boot.yml@v1
+    with:
+      java-version: '21'
+      # Pass extra Gradle args — here we enable the build scan for main-branch builds
+      gradle-args: ${{ github.ref == 'refs/heads/main' && '--scan' || '' }}
+
+  security:
+    name: Security scan
+    uses: your-username/ci-workflows/.github/workflows/security-scan.yml@v1
+    needs: [ci]
+
+  docker:
+    name: Docker build
+    uses: your-username/ci-workflows/.github/workflows/docker-build.yml@v1
+    needs: [ci]
+    with:
+      image-name: ${{ github.repository }}
+      push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}

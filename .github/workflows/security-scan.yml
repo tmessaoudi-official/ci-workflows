@@ -1,0 +1,64 @@
+name: Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      scan-path:
+        description: 'Path to scan for vulnerabilities and secrets'
+        type: string
+        default: '.'
+      trivy-severity:
+        description: 'Comma-separated severity levels that cause failure (UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL)'
+        type: string
+        default: 'CRITICAL,HIGH'
+      fail-on-secrets:
+        description: 'Whether to fail the build when secrets are detected'
+        type: boolean
+        default: true
+
+jobs:
+  secrets-scan:
+    name: Secrets scan (Gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for Gitleaks git-log scanning
+
+      - name: Run Gitleaks secret detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+        continue-on-error: ${{ !inputs.fail-on-secrets }}
+
+  vulnerability-scan:
+    name: Vulnerability scan (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # Required to upload SARIF results to the Security tab
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ inputs.scan-path }}
+          severity: ${{ inputs.trivy-severity }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()  # Upload even when Trivy finds vulnerabilities (so results are visible)
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-filesystem

@@ -1,0 +1,236 @@
+name: Angular CI
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        default: '22'
+      working-directory:
+        description: 'Directory containing the Angular project (use "." for repo root)'
+        type: string
+        default: '.'
+      run-e2e:
+        description: 'Whether to run Playwright end-to-end tests'
+        type: boolean
+        default: true
+      package-manager:
+        description: 'Node package manager to use (npm or pnpm)'
+        type: string
+        default: 'npm'
+      base-href:
+        description: 'Base href for the Angular production build (e.g. /my-app/)'
+        type: string
+        default: '/'
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # STAGE 1 — Lint and type-check (parallel jobs)
+  # ─────────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint, type-check and style
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        with:
+          run_install: false
+
+      - name: Set up Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.package-manager == 'pnpm' && 'pnpm-lock.yaml' || 'package-lock.json' }}
+
+      - name: Install dependencies (npm)
+        if: ${{ inputs.package-manager == 'npm' }}
+        run: npm ci
+
+      - name: Install dependencies (pnpm)
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        run: ${{ inputs.package-manager }} run lint -- --format=stylish
+
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit --project tsconfig.app.json
+
+      - name: Run Stylelint (if config exists)
+        run: |
+          if [ -f ".stylelintrc" ] || [ -f ".stylelintrc.json" ] || [ -f ".stylelintrc.yaml" ] || [ -f ".stylelintrc.yml" ] || [ -f "stylelint.config.js" ] || [ -f "stylelint.config.cjs" ]; then
+            ${{ inputs.package-manager }} run stylelint 2>/dev/null || npx stylelint "**/*.{css,scss,less}"
+          else
+            echo "No Stylelint config found, skipping."
+          fi
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 2 — Unit tests
+  # ─────────────────────────────────────────────────────────
+  test-unit:
+    name: Unit tests (Vitest)
+    needs: [lint-and-typecheck]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        with:
+          run_install: false
+
+      - name: Set up Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.package-manager == 'pnpm' && 'pnpm-lock.yaml' || 'package-lock.json' }}
+
+      - name: Install dependencies (npm)
+        if: ${{ inputs.package-manager == 'npm' }}
+        run: npm ci
+
+      - name: Install dependencies (pnpm)
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest unit tests with coverage
+        run: ${{ inputs.package-manager }} run test -- --run --coverage
+
+      - name: Upload unit test coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-angular-unit
+          path: ${{ inputs.working-directory }}/coverage/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 2 (parallel) — Production build
+  # ─────────────────────────────────────────────────────────
+  build:
+    name: Production build
+    needs: [lint-and-typecheck]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        with:
+          run_install: false
+
+      - name: Set up Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.package-manager == 'pnpm' && 'pnpm-lock.yaml' || 'package-lock.json' }}
+
+      - name: Install dependencies (npm)
+        if: ${{ inputs.package-manager == 'npm' }}
+        run: npm ci
+
+      - name: Install dependencies (pnpm)
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Angular application for production
+        run: npx ng build --configuration production --base-href "${{ inputs.base-href }}"
+
+      - name: Upload production build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-dist
+          path: ${{ inputs.working-directory }}/dist/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────
+  # STAGE 3 — E2E tests (conditional)
+  # ─────────────────────────────────────────────────────────
+  test-e2e:
+    name: E2E tests (Playwright)
+    needs: [test-unit]
+    if: ${{ inputs.run-e2e }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        with:
+          run_install: false
+
+      - name: Set up Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.package-manager == 'pnpm' && 'pnpm-lock.yaml' || 'package-lock.json' }}
+
+      - name: Install dependencies (npm)
+        if: ${{ inputs.package-manager == 'npm' }}
+        run: npm ci
+
+      - name: Install dependencies (pnpm)
+        if: ${{ inputs.package-manager == 'pnpm' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json', '**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies only (from cache)
+        if: ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
+        run: npx playwright install-deps chromium
+
+      - name: Run Playwright E2E tests
+        run: npx playwright test
+
+      - name: Upload Playwright report on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: ${{ inputs.working-directory }}/playwright-report/
+          retention-days: 7
