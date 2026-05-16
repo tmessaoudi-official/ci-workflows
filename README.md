@@ -9,7 +9,7 @@ Instead of copy-pasting 200 lines of CI YAML into every repository, each project
 references a single line:
 
 ```yaml
-uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
+uses: takieddine-messaoudi/ci-workflows/.github/workflows/symfony.yml@v1
 ```
 
 Update the library once and every project inherits the change on its next run.
@@ -26,7 +26,7 @@ name: CI
 on: [push, pull_request]
 jobs:
   ci:
-    uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
+    uses: takieddine-messaoudi/ci-workflows/.github/workflows/symfony.yml@v1
     with:
       php-version: '8.4'
       phpstan-level: 8
@@ -174,7 +174,7 @@ concurrency:
 
 jobs:
   backend:
-    uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
+    uses: takieddine-messaoudi/ci-workflows/.github/workflows/symfony.yml@v1
     with:
       working-directory: 'backend'
       run-mutation: ${{ github.ref == 'refs/heads/main' }}
@@ -182,17 +182,17 @@ jobs:
       COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
 
   frontend:
-    uses: your-username/ci-workflows/.github/workflows/angular.yml@v1
+    uses: takieddine-messaoudi/ci-workflows/.github/workflows/angular.yml@v1
     with:
       working-directory: 'frontend'
       run-e2e: ${{ github.ref == 'refs/heads/main' }}
 
   security:
-    uses: your-username/ci-workflows/.github/workflows/security-scan.yml@v1
+    uses: takieddine-messaoudi/ci-workflows/.github/workflows/security-scan.yml@v1
     needs: [backend, frontend]
 
   docker:
-    uses: your-username/ci-workflows/.github/workflows/docker-build.yml@v1
+    uses: takieddine-messaoudi/ci-workflows/.github/workflows/docker-build.yml@v1
     needs: [backend, frontend]
     with:
       image-name: ${{ github.repository }}
@@ -208,7 +208,7 @@ both pass. Security scan runs after both and in parallel with Docker.
 
 ## How to Contribute a New Workflow
 
-See [CLAUDE.md](CLAUDE.md) for the complete contributor guide. The short version:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete contributor guide. The short version:
 
 1. Every workflow uses `on: workflow_call:` only (no `push:` or `pull_request:`)
 2. Follow the fail-fast job order: lint → unit tests → integration → E2E
@@ -226,13 +226,13 @@ Production callers should pin to a version tag, not `@main`:
 
 ```yaml
 # Good — gets non-breaking updates within v1 automatically
-uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
+uses: takieddine-messaoudi/ci-workflows/.github/workflows/symfony.yml@v1
 
 # Also good — pinned to an exact release
-uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1.2.0
+uses: takieddine-messaoudi/ci-workflows/.github/workflows/symfony.yml@v1.2.0
 
 # Avoid for production — may break on any commit
-uses: your-username/ci-workflows/.github/workflows/symfony.yml@main
+uses: takieddine-messaoudi/ci-workflows/.github/workflows/symfony.yml@main
 ```
 
 Version semantics:
