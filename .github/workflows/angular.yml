@@ -116,7 +116,7 @@ jobs:
         run: ${{ inputs.package-manager }} run test -- --run --coverage
 
       - name: Upload unit test coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-angular-unit
           path: ${{ inputs.working-directory }}/coverage/
@@ -163,7 +163,7 @@ jobs:
         run: npx ng build --configuration production --base-href "${{ inputs.base-href }}"
 
       - name: Upload production build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: angular-dist
           path: ${{ inputs.working-directory }}/dist/
@@ -228,7 +228,7 @@ jobs:
         run: npx playwright test
 
       - name: Upload Playwright report on failure
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report

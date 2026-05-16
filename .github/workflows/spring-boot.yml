@@ -76,7 +76,7 @@ jobs:
         run: ./gradlew test ${{ inputs.gradle-args }} --info
 
       - name: Upload JUnit test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: junit-spring-boot
@@ -84,7 +84,7 @@ jobs:
           retention-days: 7
 
       - name: Upload HTML test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: html-test-report-spring-boot
@@ -125,7 +125,7 @@ jobs:
         run: ./gradlew bootJar ${{ inputs.gradle-args }}
 
       - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spring-boot-jar
           path: ${{ inputs.working-directory }}/**/build/libs/*.jar

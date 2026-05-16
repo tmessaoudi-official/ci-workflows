@@ -100,7 +100,7 @@ jobs:
         run: ${{ inputs.package-manager }} run test -- --passWithNoTests
 
       - name: Upload unit test coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-nestjs-unit
           path: ${{ inputs.working-directory }}/coverage/
@@ -215,7 +215,7 @@ jobs:
         run: ${{ inputs.package-manager }} run build
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nestjs-dist
           path: ${{ inputs.working-directory }}/dist/
