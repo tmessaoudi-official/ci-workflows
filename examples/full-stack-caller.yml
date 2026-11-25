@@ -24,7 +24,7 @@ jobs:
     name: Backend CI (Symfony)
     uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
     with:
-      php-version: '8.4'
+      php-version: '8.5'
       phpstan-level: 8
       working-directory: 'backend'
       run-mutation: ${{ github.ref == 'refs/heads/main' }}
@@ -36,7 +36,7 @@ jobs:
     name: Frontend CI (Angular)
     uses: your-username/ci-workflows/.github/workflows/angular.yml@v1
     with:
-      node-version: '22'
+      node-version: '24'
       working-directory: 'frontend'
       run-e2e: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
 

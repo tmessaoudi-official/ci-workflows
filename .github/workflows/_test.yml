@@ -11,6 +11,9 @@ on:
       - '.github/workflows/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   actionlint:
     name: Lint all workflow files (actionlint)
@@ -19,16 +22,16 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run actionlint
-        uses: docker://rhysd/actionlint:latest
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12
         with:
           args: -color
 
       - name: Check workflow YAML syntax (yamllint)
         run: |
-          pip install yamllint --quiet
+          pip install yamllint==1.38.0 --quiet
           yamllint -d '{extends: relaxed, rules: {line-length: {max: 120}}}' .github/workflows/
 
   validate-examples:
@@ -38,11 +41,11 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check example YAML syntax
         run: |
-          pip install yamllint --quiet
+          pip install yamllint==1.38.0 --quiet
           yamllint -d '{extends: relaxed, rules: {line-length: {max: 120}}}' examples/
 
       - name: Verify all referenced workflow files exist

@@ -17,7 +17,7 @@ jobs:
     name: Symfony CI
     uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
     with:
-      php-version: '8.4'
+      php-version: '8.5'
       phpstan-level: 8
       # Only run mutation testing on the main branch (it's slow)
       run-mutation: ${{ github.ref == 'refs/heads/main' }}

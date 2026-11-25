@@ -27,14 +27,14 @@ jobs:
   ci:
     uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
     with:
-      php-version: '8.4'
+      php-version: '8.5'
 ```
 
 ## All Inputs
 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
-| `php-version` | string | `'8.4'` | PHP version installed via shivammathur/setup-php |
+| `php-version` | string | `'8.5'` | PHP version installed via shivammathur/setup-php |
 | `composer-flags` | string | `'--prefer-dist --no-progress'` | Extra flags for `composer install` |
 | `phpstan-level` | number | `8` | PHPStan analysis level (0–9) |
 | `run-mutation` | boolean | `false` | Run Infection mutation testing (recommended for main branch only) |
@@ -97,7 +97,7 @@ jobs:
   ci:
     uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
     with:
-      php-version: '8.4'
+      php-version: '8.5'
       # run-e2e is not an input — to skip Behat, use workflow_call conditions at the
       # caller level or configure Behat suites in your behat.yml to skip gracefully
 ```
@@ -109,7 +109,7 @@ jobs:
   backend:
     uses: your-username/ci-workflows/.github/workflows/symfony.yml@v1
     with:
-      php-version: '8.4'
+      php-version: '8.5'
       working-directory: 'backend'
 ```
 

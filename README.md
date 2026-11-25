@@ -1,7 +1,7 @@
 # ci-workflows
 
 A library of reusable GitHub Actions workflows for PHP/Symfony, Angular, Java/Spring Boot,
-and NestJS projects. Battle-tested, opinionated, and designed around one principle:
+and NestJS projects. Opinionated, and designed around one principle:
 
 > **Write your CI pipeline once. Reference it from every project.**
 
@@ -28,7 +28,7 @@ jobs:
   ci:
     uses: tmessaoudi-official/ci-workflows/.github/workflows/symfony.yml@v1
     with:
-      php-version: '8.4'
+      php-version: '8.5'
       phpstan-level: 8
 ```
 
@@ -59,7 +59,7 @@ Full reference: [docs/inputs-reference.md](docs/inputs-reference.md)
 
 ```yaml
 with:
-  php-version: '8.4'              # PHP version
+  php-version: '8.5'              # PHP version
   composer-flags: '--prefer-dist' # Extra composer install flags
   phpstan-level: 8                # 0–9
   run-mutation: false             # Infection (slow — run on main only)
@@ -73,7 +73,7 @@ secrets:
 
 ```yaml
 with:
-  node-version: '22'
+  node-version: '24'
   package-manager: 'npm'    # or 'pnpm'
   run-e2e: true             # Playwright (disable for feature branch PRs)
   working-directory: '.'
@@ -93,7 +93,7 @@ with:
 
 ```yaml
 with:
-  node-version: '22'
+  node-version: '24'
   package-manager: 'pnpm'  # or 'npm'
   working-directory: '.'
 ```
@@ -222,17 +222,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete contributor guide. The s
 
 ## Versioning
 
-Production callers should pin to a version tag, not `@main`:
+**No release is tagged yet**, so `@v1` and `@v1.2.0` in the examples above do not resolve
+today. Until `v1.0.0` (and the floating `v1`) is published, pin a commit of `master` you have
+reviewed:
 
 ```yaml
-# Good — gets non-breaking updates within v1 automatically
+# Today: an exact, reviewed commit of master
+uses: tmessaoudi-official/ci-workflows/.github/workflows/symfony.yml@<40-character-sha>
+
+# Once v1 is tagged: non-breaking updates within v1
 uses: tmessaoudi-official/ci-workflows/.github/workflows/symfony.yml@v1
 
-# Also good — pinned to an exact release
-uses: tmessaoudi-official/ci-workflows/.github/workflows/symfony.yml@v1.2.0
-
-# Avoid for production — may break on any commit
-uses: tmessaoudi-official/ci-workflows/.github/workflows/symfony.yml@main
+# Avoid: changes with every commit
+uses: tmessaoudi-official/ci-workflows/.github/workflows/symfony.yml@master
 ```
 
 Version semantics:
@@ -241,6 +243,28 @@ Version semantics:
 - **Major** (`v2.0.0`): renamed/removed inputs, changed job structure
 
 Major version tags (`v1`, `v2`) float to the latest minor/patch within that major.
+
+---
+
+## Pinned actions
+
+Every action these workflows call is pinned by full commit SHA, with its release in a comment
+(`actions/checkout@<sha> # v7.0.1`). A tag can be moved to other code; a SHA cannot. This is not
+theoretical: after a 2026 supply-chain attack, `aquasecurity/trivy-action` reissued its tags
+under a `v` prefix, and the `0.28.0` tag this library used to reference no longer exists.
+Dependabot updates the SHA and the comment together.
+
+All pinned releases run on Node 24: GitHub removed Node 20 from its hosted runners on
+2026-09-16, which stopped the previous `@v4`-era references from running.
+
+One deliberate hold: **`gradle/actions` stays on v5**. Its v6 moved Gradle caching into a
+proprietary component, and upgrading accepts Gradle's Terms of Use on behalf of every caller.
+`.github/dependabot.yml` ignores its major updates; lift that only as a conscious decision.
+
+Inputs never appear inside `run:` scripts as `${{ inputs.* }}`: each workflow maps them to
+environment variables first (`env:` at the top of the file), so a caller-supplied value is data,
+not shell code. Secrets follow the same rule (`COMPOSER_AUTH` is passed as an environment
+variable, which Composer reads natively).
 
 ---
 
