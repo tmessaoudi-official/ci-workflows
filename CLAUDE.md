@@ -22,7 +22,7 @@ on:
       php-version:
         description: 'PHP version to use'
         type: string
-        default: '8.4'
+        default: '8.5'
       run-optional-step:
         description: 'Whether to run the optional step'
         type: boolean
@@ -78,7 +78,7 @@ All service containers require health checks to prevent race conditions:
 ```yaml
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:19-alpine
     env:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
@@ -92,7 +92,10 @@ services:
       --health-retries 5
 ```
 
-Use `postgres:17-alpine`, `redis:7-alpine`, `rabbitmq:3-alpine` as base images.
+Use `postgres:19-alpine`, `redis:8-alpine`, `rabbitmq:4-alpine` as base images (symfony.yml,
+matched against the Symfony starter's stack). nestjs.yml and spring-boot.yml still use
+`postgres:17-alpine` / `redis:7-alpine` until their starters are checked against 19 / 8
+(Flyway, the Node drivers); keep each service's `serverVersion` equal to its image major.
 
 ### 6. Permissions
 
@@ -121,31 +124,22 @@ jobs:
 
 This does not apply to `uses:` steps — pass paths explicitly for those.
 
-### 8. Action versions (pinned to current majors)
+### 8. Action references: full SHA, current major, no expressions in scripts
 
-Always use the current major version of each action:
-
-| Action                              | Version |
-|-------------------------------------|---------|
-| `actions/checkout`                  | `v4`    |
-| `actions/setup-node`                | `v4`    |
-| `actions/setup-java`                | `v4`    |
-| `actions/cache`                     | `v4`    |
-| `actions/upload-artifact`           | `v4`    |
-| `actions/download-artifact`         | `v4`    |
-| `shivammathur/setup-php`            | `v2`    |
-| `gradle/actions/setup-gradle`       | `v4`    |
-| `gradle/actions/wrapper-validation` | `v4`    |
-| `docker/setup-buildx-action`        | `v3`    |
-| `docker/login-action`               | `v3`    |
-| `docker/build-push-action`          | `v6`    |
-| `docker/metadata-action`            | `v5`    |
-| `aquasecurity/trivy-action`         | `0.28.0`|
-| `gitleaks/gitleaks-action`          | `v2`    |
-| `github/codeql-action/upload-sarif` | `v3`    |
-| `pnpm/action-setup`                 | `v4`    |
-
-When adding a new action: verify the current major on the marketplace before using it.
+- Pin every `uses:` by its 40-character commit SHA with the release in a comment:
+  `uses: actions/checkout@<sha> # v7.0.1`. Resolve the SHA from the release tag (dereference
+  annotated tags), never from a branch. Docker actions pin the image digest
+  (`docker://rhysd/actionlint@sha256:<digest> # 1.7.12`).
+- Use the current major (check `gh api repos/<owner>/<repo>/releases/latest`); Dependabot then
+  keeps SHA and comment in step. Exception: `gradle/actions` stays on v5 (v6 caching is
+  proprietary; see README "Pinned actions" and the `ignore` in `.github/dependabot.yml`).
+- Never write `${{ inputs.* }}` or `${{ secrets.* }}` inside a `run:` script. Map inputs to `env:`
+  at the top of the workflow and use `"$VAR"` (split flag strings with `read -ra`); give a secret
+  to the one step that needs it through that step's `env:`. Never use `secrets` in an `if:`:
+  GitHub rejects the whole file ("workflow file issue", 0 jobs), which is how symfony.yml was red
+  on every push until 2026-11.
+- `_test.yml` runs actionlint (pinned digest) and yamllint (pinned version); run the same locally:
+  `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12`.
 
 ## How to Add a New Workflow
 
@@ -189,7 +183,8 @@ via a local caller file that references the local path.
 - New optional inputs with defaults are non-breaking (minor version bump).
 - Bug fixes and action version bumps are patch-level.
 
-Production callers should pin to a tag (`@v1`) not `@main`.
+Production callers should pin to a tag (`@v1`) not `@master`; until the first tag exists, to a
+reviewed commit SHA (README "Versioning").
 
 ## Repository Conventions
 

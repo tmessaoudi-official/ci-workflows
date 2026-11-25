@@ -15,7 +15,7 @@ jobs:
     name: Angular CI
     uses: your-username/ci-workflows/.github/workflows/angular.yml@v1
     with:
-      node-version: '22'
+      node-version: '24'
       package-manager: 'npm'
       # Skip E2E on pull requests to feature branches — run on main merges only
       run-e2e: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}

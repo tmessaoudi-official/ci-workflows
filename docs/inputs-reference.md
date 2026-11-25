@@ -8,7 +8,7 @@ Complete reference for all inputs, secrets, and outputs across every workflow.
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `php-version` | string | `'8.4'` | PHP version installed via shivammathur/setup-php |
+| `php-version` | string | `'8.5'` | PHP version installed via shivammathur/setup-php |
 | `composer-flags` | string | `'--prefer-dist --no-progress'` | Extra flags for `composer install` |
 | `phpstan-level` | number | `8` | PHPStan analysis level (0–9) |
 | `run-mutation` | boolean | `false` | Run Infection mutation testing |
@@ -33,7 +33,7 @@ None — coverage and junit artifacts are uploaded directly.
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `node-version` | string | `'22'` | Node.js version |
+| `node-version` | string | `'24'` | Node.js version |
 | `working-directory` | string | `'.'` | Path to the Angular project root |
 | `run-e2e` | boolean | `true` | Whether to run Playwright E2E tests |
 | `package-manager` | string | `'npm'` | `npm` or `pnpm` |
@@ -76,7 +76,7 @@ None — JAR and test report artifacts are uploaded directly.
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `node-version` | string | `'22'` | Node.js version |
+| `node-version` | string | `'24'` | Node.js version |
 | `package-manager` | string | `'pnpm'` | `npm` or `pnpm` |
 | `working-directory` | string | `'.'` | Path to the NestJS project root |
 

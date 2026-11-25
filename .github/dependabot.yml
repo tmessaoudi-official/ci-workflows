@@ -4,3 +4,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # gradle/actions v6 moved its caching into a proprietary component: upgrading accepts
+      # Gradle's Terms of Use on behalf of every caller. Stay on the MIT-licensed v5 until a
+      # maintainer decides otherwise (README "Pinned actions").
+      - dependency-name: "gradle/actions*"
+        update-types: ["version-update:semver-major"]

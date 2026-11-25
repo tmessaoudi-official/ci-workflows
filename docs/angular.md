@@ -23,14 +23,14 @@ jobs:
   ci:
     uses: your-username/ci-workflows/.github/workflows/angular.yml@v1
     with:
-      node-version: '22'
+      node-version: '24'
 ```
 
 ## All Inputs
 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
-| `node-version` | string | `'22'` | Node.js version (LTS recommended) |
+| `node-version` | string | `'24'` | Node.js version (LTS recommended) |
 | `working-directory` | string | `'.'` | Path to the Angular project root |
 | `run-e2e` | boolean | `true` | Whether to run Playwright E2E tests |
 | `package-manager` | string | `'npm'` | `npm` or `pnpm` |
@@ -89,7 +89,7 @@ jobs:
       package-manager: 'pnpm'
 ```
 
-The workflow installs pnpm via `pnpm/action-setup@v4` before Node setup when `package-manager: pnpm` is set.
+The workflow installs pnpm via `pnpm/action-setup` (v6) before Node setup when `package-manager: pnpm` is set.
 
 ### App Deployed at a Sub-path
 

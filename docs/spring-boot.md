@@ -11,7 +11,7 @@ build-and-test ──► build-jar
 | `build-and-test` | Gradle + JUnit | Validates wrapper, runs all tests (unit + integration + ArchUnit), uploads reports |
 | `build-jar` | Gradle bootJar | Produces the executable JAR artifact |
 
-The `gradle/actions/setup-gradle@v4` action handles all Gradle caching automatically
+The `gradle/actions/setup-gradle` action (v5, MIT; see the README for why not v6) handles all Gradle caching automatically
 (Gradle home, wrapper, build cache) — no manual `actions/cache` needed.
 
 ## Minimal Caller

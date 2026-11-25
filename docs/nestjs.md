@@ -30,7 +30,7 @@ jobs:
 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
-| `node-version` | string | `'22'` | Node.js version |
+| `node-version` | string | `'24'` | Node.js version |
 | `package-manager` | string | `'pnpm'` | `npm` or `pnpm` |
 | `working-directory` | string | `'.'` | Path to the NestJS project root |
 

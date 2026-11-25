@@ -15,7 +15,7 @@ jobs:
     name: NestJS CI
     uses: your-username/ci-workflows/.github/workflows/nestjs.yml@v1
     with:
-      node-version: '22'
+      node-version: '24'
       package-manager: 'pnpm'
 
   security:
